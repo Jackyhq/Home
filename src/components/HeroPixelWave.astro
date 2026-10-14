@@ -1,0 +1,664 @@
+<div
+  class="hero-pixel-wave"
+  data-hero-pixel-wave
+  data-motion="pending"
+  aria-hidden="true"
+>
+  <canvas class="hero-pixel-wave__canvas" data-pixel-wave-canvas aria-hidden="true"></canvas>
+</div>
+
+<script>
+  interface NetworkInformationLike extends EventTarget {
+    saveData?: boolean;
+  }
+
+  interface WaveRenderer {
+    kind: 'webgl2' | 'canvas2d';
+    resize(width: number, height: number, dpr: number, pitch: number): void;
+    draw(time: number): void;
+    destroy(): void;
+  }
+
+  type Rgb = [number, number, number];
+
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const connection = (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
+  const BASE_GRID_PITCH = 7;
+  const MAX_GRID_POINTS = 120_000;
+  const FRAME_INTERVAL_MS = 1000 / 30;
+
+  const countGridPoints = (width: number, height: number, pitch: number) =>
+    Math.ceil(width / pitch) * Math.ceil(height / pitch);
+
+  const resolveGridPitch = (width: number, height: number) => {
+    if (countGridPoints(width, height, BASE_GRID_PITCH) <= MAX_GRID_POINTS) {
+      return BASE_GRID_PITCH;
+    }
+
+    let lower = BASE_GRID_PITCH + 1;
+    let upper = Math.max(lower, Math.ceil(Math.max(width, height)));
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2);
+      if (countGridPoints(width, height, middle) <= MAX_GRID_POINTS) {
+        upper = middle;
+      } else {
+        lower = middle + 1;
+      }
+    }
+
+    return lower;
+  };
+
+  const randomSeed = () => {
+    if (window.crypto?.getRandomValues) {
+      return window.crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+    }
+
+    return Math.random();
+  };
+
+  const parseColor = (value: string, fallback: Rgb): Rgb => {
+    const color = value.trim();
+    const hex = color.match(/^#([\da-f]{6})$/i)?.[1];
+    if (hex) {
+      return [
+        Number.parseInt(hex.slice(0, 2), 16) / 255,
+        Number.parseInt(hex.slice(2, 4), 16) / 255,
+        Number.parseInt(hex.slice(4, 6), 16) / 255,
+      ];
+    }
+
+    const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+    if (channels?.length === 3) {
+      return channels.map((channel) => channel / 255) as Rgb;
+    }
+
+    return fallback;
+  };
+
+  const vertexShaderSource = `#version 300 es
+    precision highp float;
+
+    uniform vec2 uResolution;
+    uniform float uDpr;
+    uniform float uPitch;
+    uniform float uTime;
+    uniform float uSeed;
+    uniform vec3 uPaper;
+    uniform vec3 uMuted;
+    uniform vec3 uAccent;
+
+    out vec4 vColor;
+
+    float random(vec2 value) {
+      return fract(sin(dot(value, vec2(12.9898, 78.233))) * 43758.5453123);
+    }
+
+    vec2 hash(vec2 value) {
+      value = vec2(
+        dot(value, vec2(127.1, 311.7)),
+        dot(value, vec2(269.5, 183.3))
+      );
+      return -1.0 + 2.0 * fract(sin(value) * 43758.5453123);
+    }
+
+    float noise(vec2 point) {
+      const float K1 = 0.366025404;
+      const float K2 = 0.211324865;
+      vec2 cell = floor(point + (point.x + point.y) * K1);
+      vec2 first = point - cell + (cell.x + cell.y) * K2;
+      vec2 corner = first.x > first.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+      vec2 second = first - corner + K2;
+      vec2 third = first - 1.0 + 2.0 * K2;
+      vec3 falloff = max(
+        0.5 - vec3(dot(first, first), dot(second, second), dot(third, third)),
+        0.0
+      );
+      vec3 gradients = falloff * falloff * falloff * falloff * vec3(
+        dot(first, hash(cell)),
+        dot(second, hash(cell + corner)),
+        dot(third, hash(cell + 1.0))
+      );
+      return dot(gradients, vec3(70.0));
+    }
+
+    float fbm(vec2 point) {
+      float value = 0.0;
+      float amplitude = 0.5;
+      float frequency = 1.0;
+      for (int octave = 0; octave < 3; octave += 1) {
+        value += amplitude * noise(point * frequency);
+        frequency *= 2.0;
+        amplitude *= 0.5;
+      }
+      return value * 0.5 + 0.5;
+    }
+
+    vec2 flowField(vec2 uv, float time) {
+      vec2 warped = vec2(
+        fbm(uv * 1.5 + vec2(0.0, 0.2 * time * 0.15)),
+        fbm(uv * 1.5 + vec2(1.2, -0.3 * time * 0.15))
+      );
+      return vec2(warped.x * 0.3, warped.y * 2.1) * 35.0;
+    }
+
+    float fluidField(vec2 uv, float time) {
+      float phase = time * 0.18;
+      vec2 warped = vec2(
+        fbm(uv * 0.5 + vec2(0.0, 0.2 * phase)),
+        fbm(uv * 0.5 + vec2(1.2, -0.3 * phase))
+      );
+      return fbm(uv * 0.5 + warped * 4.0);
+    }
+
+    void main() {
+      const float squareSize = 5.0;
+      float pitch = uPitch;
+      float columns = ceil(uResolution.x / pitch);
+      float id = float(gl_VertexID);
+      vec2 blockId = vec2(mod(id, columns), floor(id / columns));
+      vec2 blockPosition = blockId * pitch;
+      vec2 blockCenter = blockPosition + vec2(squareSize * 0.5);
+      vec2 uv = blockCenter / uResolution;
+      float time = uTime * 1.45 + uSeed * 41.0;
+
+      vec2 samplePosition = blockPosition - flowField(uv, time) + vec2(squareSize * 0.5);
+      float field = fluidField(samplePosition / uResolution, time);
+      float cellRandom = random(blockId + vec2(uSeed * 97.0));
+      float threshold = 0.87 - 0.08 * cellRandom;
+      float accentLuma = dot(uAccent, vec3(0.299, 0.587, 0.114));
+      float paperLuma = dot(uPaper, vec3(0.299, 0.587, 0.114));
+      float brightness = mix(accentLuma, paperLuma, field);
+      float coverage = smoothstep(threshold - 0.018, threshold + 0.018, brightness);
+
+      float orangeRandom = random(blockId * 2.31 + vec2(uSeed * 211.0));
+      float orangeRegion = smoothstep(0.55, 0.70, field);
+      float orangeChance = mix(0.03, 0.62, orangeRegion);
+      float orangeMask = 1.0 - smoothstep(
+        orangeChance - 0.018,
+        orangeChance + 0.018,
+        orangeRandom
+      );
+      vec3 waveOrange = mix(uAccent, uPaper, 0.1);
+      vec3 color = cellRandom < 0.34 ? uMuted : uPaper;
+      color = mix(color, waveOrange, orangeMask * 0.94);
+      float energy = smoothstep(threshold, min(1.0, threshold + 0.12), brightness);
+      float alpha = coverage * mix(0.72, 1.0, energy);
+      alpha = mix(alpha, coverage, orangeMask * 0.45);
+
+      vec2 clip = (blockCenter / uResolution) * 2.0 - 1.0;
+      gl_Position = coverage > 0.01
+        ? vec4(clip, 0.0, 1.0)
+        : vec4(2.0, 2.0, 0.0, 1.0);
+      gl_PointSize = squareSize * uDpr;
+      vColor = vec4(color, alpha);
+    }
+  `;
+
+  const fragmentShaderSource = `#version 300 es
+    precision mediump float;
+    in vec4 vColor;
+    out vec4 outColor;
+
+    void main() {
+      outColor = vColor;
+    }
+  `;
+
+  const compileShader = (
+    gl: WebGL2RenderingContext,
+    type: number,
+    source: string,
+  ) => {
+    const shader = gl.createShader(type);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+    gl.deleteShader(shader);
+    return null;
+  };
+
+  const createWebGlRenderer = (
+    canvas: HTMLCanvasElement,
+    palette: { paper: Rgb; muted: Rgb; accent: Rgb },
+    seed: number,
+  ): WaveRenderer | null => {
+    const gl = canvas.getContext('webgl2', {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: 'high-performance',
+      premultipliedAlpha: true,
+    });
+    if (!gl) return null;
+
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+    if (!vertexShader || !fragmentShader) return null;
+
+    const program = gl.createProgram();
+    if (!program) return null;
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      return null;
+    }
+
+    const vertexArray = gl.createVertexArray();
+    const resolutionLocation = gl.getUniformLocation(program, 'uResolution');
+    const dprLocation = gl.getUniformLocation(program, 'uDpr');
+    const pitchLocation = gl.getUniformLocation(program, 'uPitch');
+    const timeLocation = gl.getUniformLocation(program, 'uTime');
+    const seedLocation = gl.getUniformLocation(program, 'uSeed');
+    const paperLocation = gl.getUniformLocation(program, 'uPaper');
+    const mutedLocation = gl.getUniformLocation(program, 'uMuted');
+    const accentLocation = gl.getUniformLocation(program, 'uAccent');
+    let cssWidth = 1;
+    let cssHeight = 1;
+    let pointCount = 1;
+
+    gl.useProgram(program);
+    gl.bindVertexArray(vertexArray);
+    gl.uniform1f(seedLocation, seed);
+    gl.uniform3fv(paperLocation, palette.paper);
+    gl.uniform3fv(mutedLocation, palette.muted);
+    gl.uniform3fv(accentLocation, palette.accent);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.disable(gl.DEPTH_TEST);
+    gl.clearColor(0, 0, 0, 0);
+
+    return {
+      kind: 'webgl2',
+      resize(width, height, dpr, pitch) {
+        cssWidth = width;
+        cssHeight = height;
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        pointCount = countGridPoints(width, height, pitch);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.useProgram(program);
+        gl.uniform2f(resolutionLocation, cssWidth, cssHeight);
+        gl.uniform1f(dprLocation, dpr);
+        gl.uniform1f(pitchLocation, pitch);
+      },
+      draw(time) {
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.bindVertexArray(vertexArray);
+        gl.uniform1f(timeLocation, time);
+        gl.drawArrays(gl.POINTS, 0, pointCount);
+      },
+      destroy() {
+        gl.deleteVertexArray(vertexArray);
+        gl.deleteProgram(program);
+      },
+    };
+  };
+
+  const createCanvasFallback = (
+    canvas: HTMLCanvasElement,
+    palette: { paper: Rgb; muted: Rgb; accent: Rgb },
+    seed: number,
+  ): WaveRenderer | null => {
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return null;
+    let width = 1;
+    let height = 1;
+    let dpr = 1;
+    let pitch = BASE_GRID_PITCH;
+
+    const toCss = (color: Rgb, alpha: number) =>
+      `rgb(${Math.round(color[0] * 255)} ${Math.round(color[1] * 255)} ${Math.round(color[2] * 255)} / ${alpha})`;
+    const smoothStep = (edge0: number, edge1: number, value: number) => {
+      const progress = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+      return progress * progress * (3 - 2 * progress);
+    };
+    const mixColor = (from: Rgb, to: Rgb, amount: number): Rgb => [
+      from[0] + (to[0] - from[0]) * amount,
+      from[1] + (to[1] - from[1]) * amount,
+      from[2] + (to[2] - from[2]) * amount,
+    ];
+
+    return {
+      kind: 'canvas2d',
+      resize(nextWidth, nextHeight, nextDpr, nextPitch) {
+        width = nextWidth;
+        height = nextHeight;
+        dpr = nextDpr;
+        pitch = nextPitch;
+        canvas.width = Math.max(1, Math.round(width * dpr));
+        canvas.height = Math.max(1, Math.round(height * dpr));
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      },
+      draw(time) {
+        context.clearRect(0, 0, width, height);
+        const phase = time * 0.18 + seed * 17;
+        for (let y = 0; y < height; y += pitch) {
+          for (let x = 0; x < width; x += pitch) {
+            const nx = x / width;
+            const ny = y / height;
+            const first = Math.sin(nx * 7 + Math.sin(ny * 5 - phase) * 2.4 + phase * 0.35);
+            const second = Math.sin(ny * 11 - Math.cos(nx * 6 + phase * 0.22) * 2.1 - phase);
+            const field = first * 0.58 + second * 0.42;
+            const cellRandom = Math.abs(Math.sin((x * 12.9898 + y * 78.233 + seed) * 0.01));
+            const baseVisible = field >= 0.62 - cellRandom * 0.2;
+            if (!baseVisible) continue;
+            const normalizedField = field * 0.5 + 0.5;
+            const orangeValue = Math.sin(
+              (x * 2.31 + seed * 211) * 12.9898 + (y * 2.31 + seed * 211) * 78.233,
+            ) * 43758.5453123;
+            const orangeRandom = orangeValue - Math.floor(orangeValue);
+            const orangeRegion = smoothStep(0.72, 0.85, normalizedField);
+            const orangeChance = 0.03 + (0.62 - 0.03) * orangeRegion;
+            const orangeMask = 1 - smoothStep(
+              orangeChance - 0.018,
+              orangeChance + 0.018,
+              orangeRandom,
+            );
+            const baseColor = cellRandom < 0.34 ? palette.muted : palette.paper;
+            const waveOrange = mixColor(palette.accent, palette.paper, 0.1);
+            const color = mixColor(baseColor, waveOrange, orangeMask * 0.94);
+            const baseAlpha = 0.36 + Math.min(0.3, (field - 0.42) * 0.5);
+            context.fillStyle = toCss(color, baseAlpha + (0.74 - baseAlpha) * orangeMask * 0.45);
+            context.fillRect(x, y, 5, 5);
+          }
+        }
+      },
+      destroy() {},
+    };
+  };
+
+  document.querySelectorAll<HTMLElement>('[data-hero-pixel-wave]').forEach((root) => {
+    if (root.dataset.pixelWaveReady === 'true') return;
+
+    let canvas = root.querySelector<HTMLCanvasElement>('[data-pixel-wave-canvas]');
+    if (!canvas) return;
+    root.dataset.pixelWaveReady = 'true';
+
+    const styles = getComputedStyle(root);
+    const palette = {
+      paper: parseColor(styles.getPropertyValue('--color-paper'), [0.957, 0.945, 0.922]),
+      muted: parseColor(styles.getPropertyValue('--color-muted'), [0.373, 0.392, 0.439]),
+      accent: parseColor(styles.getPropertyValue('--color-accent'), [0.937, 0.42, 0.302]),
+    };
+    const seed = randomSeed();
+    let renderer: WaveRenderer | null = createWebGlRenderer(canvas, palette, seed);
+
+    if (!renderer) {
+      const replacement = canvas.cloneNode(false) as HTMLCanvasElement;
+      canvas.replaceWith(replacement);
+      canvas = replacement;
+      renderer = createCanvasFallback(canvas, palette, seed);
+    }
+    if (!renderer) return;
+
+    root.dataset.renderer = renderer.kind;
+    type ContextState = 'active' | 'fallback' | 'lost' | 'failed';
+    let contextState: ContextState = renderer.kind === 'webgl2' ? 'active' : 'fallback';
+    root.dataset.context = contextState;
+    let frameId = 0;
+    let inView = false;
+    let destroyed = false;
+    let pendingResize = false;
+    let needsDraw = false;
+    const staticTime = seed * 36;
+    let elapsedTime = 0;
+    let lastDrawTime = 0;
+    let lastAnimationTime = 0;
+    let animated = renderer.kind === 'webgl2' && !motionQuery.matches && !connection?.saveData;
+
+    const updateMotionState = () => {
+      root.dataset.motion = contextState === 'lost'
+        ? 'paused'
+        : animated && contextState === 'active'
+          ? 'animated'
+          : 'reduced';
+    };
+
+    const stop = () => {
+      lastAnimationTime = 0;
+      if (!frameId) return;
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+    };
+
+    const tick = (timestamp: number) => {
+      frameId = 0;
+      const activeRenderer = renderer;
+      const shouldAnimate = animated && contextState === 'active';
+      const drawTime = performance.now();
+      if (
+        destroyed ||
+        contextState === 'lost' ||
+        contextState === 'failed' ||
+        !activeRenderer ||
+        !inView ||
+        document.hidden ||
+        (!shouldAnimate && !pendingResize && !needsDraw)
+      ) return;
+
+      if (lastDrawTime && drawTime - lastDrawTime < FRAME_INTERVAL_MS - 0.5) {
+        frameId = requestAnimationFrame(tick);
+        return;
+      }
+
+      if (pendingResize) {
+        const bounds = root.getBoundingClientRect();
+        const width = Math.max(1, Math.round(bounds.width));
+        const height = Math.max(1, Math.round(bounds.height));
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.2);
+        const pitch = resolveGridPitch(width, height);
+        const pointCount = countGridPoints(width, height, pitch);
+        root.dataset.gridPitch = String(pitch);
+        root.dataset.gridPoints = String(pointCount);
+        activeRenderer.resize(width, height, dpr, pitch);
+        pendingResize = false;
+      }
+
+      if (shouldAnimate) {
+        if (lastAnimationTime) {
+          elapsedTime += Math.min((timestamp - lastAnimationTime) / 1000, 0.1);
+        }
+        lastAnimationTime = timestamp;
+      }
+
+      activeRenderer.draw(shouldAnimate ? staticTime + elapsedTime : staticTime);
+      lastDrawTime = performance.now();
+      needsDraw = false;
+      if (shouldAnimate) frameId = requestAnimationFrame(tick);
+    };
+
+    const start = () => {
+      const shouldAnimate = animated && contextState === 'active';
+      if (
+        destroyed ||
+        contextState === 'lost' ||
+        contextState === 'failed' ||
+        !renderer ||
+        !inView ||
+        document.hidden ||
+        frameId ||
+        (!shouldAnimate && !pendingResize && !needsDraw)
+      ) return;
+      frameId = requestAnimationFrame(tick);
+    };
+
+    const resize = () => {
+      if (destroyed || contextState === 'lost' || contextState === 'failed' || !renderer) return;
+      pendingResize = true;
+      needsDraw = true;
+      start();
+    };
+
+    const updateMotionPreference = () => {
+      animated = renderer?.kind === 'webgl2' && !motionQuery.matches && !connection?.saveData;
+      updateMotionState();
+      if (destroyed || contextState === 'lost' || contextState === 'failed' || !renderer) return;
+      stop();
+      needsDraw = true;
+      start();
+    };
+
+    const handleContextLost = (event: Event) => {
+      if (destroyed || contextState !== 'active' || renderer?.kind !== 'webgl2') return;
+      event.preventDefault();
+      contextState = 'lost';
+      root.dataset.context = contextState;
+      stop();
+      pendingResize = false;
+      needsDraw = false;
+      updateMotionState();
+    };
+
+    const handleContextRestored = () => {
+      if (destroyed || contextState !== 'lost') return;
+
+      let rebuiltRenderer: WaveRenderer | null = null;
+      try {
+        rebuiltRenderer = createWebGlRenderer(canvas, palette, seed);
+      } catch {
+        rebuiltRenderer = null;
+      }
+      renderer = rebuiltRenderer;
+
+      if (!renderer) {
+        animated = false;
+        contextState = 'failed';
+        root.dataset.context = contextState;
+        root.dataset.renderer = 'unavailable';
+        updateMotionState();
+        return;
+      }
+
+      contextState = 'active';
+      root.dataset.context = contextState;
+      root.dataset.renderer = renderer.kind;
+      animated = !motionQuery.matches && !connection?.saveData;
+      updateMotionState();
+      resize();
+    };
+
+    const updateVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    const initialBounds = root.getBoundingClientRect();
+    inView = initialBounds.bottom > 0 && initialBounds.top < window.innerHeight;
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      inView = entry?.isIntersecting ?? false;
+      if (inView) start();
+      else stop();
+    });
+    const resizeObserver = new ResizeObserver(resize);
+
+    intersectionObserver.observe(root);
+    resizeObserver.observe(root);
+    motionQuery.addEventListener('change', updateMotionPreference);
+    connection?.addEventListener('change', updateMotionPreference);
+    document.addEventListener('visibilitychange', updateVisibility);
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
+    updateMotionState();
+    resize();
+
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        destroyed = true;
+        stop();
+        pendingResize = false;
+        needsDraw = false;
+        intersectionObserver.disconnect();
+        resizeObserver.disconnect();
+        motionQuery.removeEventListener('change', updateMotionPreference);
+        connection?.removeEventListener('change', updateMotionPreference);
+        document.removeEventListener('visibilitychange', updateVisibility);
+        canvas.removeEventListener('webglcontextlost', handleContextLost);
+        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+        if (contextState !== 'lost') renderer?.destroy();
+        renderer = null;
+      },
+      { once: true },
+    );
+  });
+</script>
+
+<style>
+  .hero-pixel-wave {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    overflow: hidden;
+    background: transparent;
+    contain: strict;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .hero-pixel-wave::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgb(17 26 43 / 96%) 0%,
+      rgb(17 26 43 / 58%) 28%,
+      rgb(17 26 43 / 56%) 62%,
+      rgb(17 26 43 / 96%) 100%
+    );
+    content: '';
+  }
+
+  canvas {
+    --wave-edge-fade-top: 5%;
+    --wave-edge-fade-bottom: 3.5%;
+
+    display: block;
+    width: 100%;
+    height: 100%;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black var(--wave-edge-fade-top),
+      black calc(100% - var(--wave-edge-fade-bottom)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black var(--wave-edge-fade-top),
+      black calc(100% - var(--wave-edge-fade-bottom)),
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  @media (max-width: 42.5rem) {
+    .hero-pixel-wave::after {
+      background: linear-gradient(
+        to bottom,
+        rgb(17 26 43 / 97%) 0%,
+        rgb(17 26 43 / 58%) 24%,
+        rgb(17 26 43 / 56%) 60%,
+        rgb(17 26 43 / 94%) 100%
+      );
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    canvas {
+      opacity: 0.88;
+    }
+  }
+</style>

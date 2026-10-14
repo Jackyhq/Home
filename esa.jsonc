@@ -1,0 +1,8 @@
+{
+  "name": "home",
+  "installCommand": "corepack enable && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm deploy:esa",
+  "assets": {
+    "directory": "./dist"
+  }
+}

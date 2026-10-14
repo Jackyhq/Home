@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+dist/
+dist-en/
+.astro/
+.vercel/
+.local/
+playwright-report/
+test-results/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# AI-assisted design sessions and generated QA captures.
+artifacts/*

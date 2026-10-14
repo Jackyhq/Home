@@ -1,0 +1,171 @@
+---
+import {
+  alternateLocale,
+  isEnglish,
+  languageSwitchUrl,
+  siteContent,
+} from '../i18n';
+
+const navigation = siteContent.navigation;
+const navigationItems = [
+  { href: '#top', index: '01', label: navigation.home },
+  { href: '#about', index: '02', label: navigation.about },
+  { href: '#photography', index: '03', label: navigation.photography },
+] as const;
+const languageSwitchLabel = alternateLocale === 'zh-CN' ? 'Chinese' : 'English';
+const menuLabel = navigation.menu;
+const closeMenuLabel = navigation.closeMenu;
+const primaryLabel = navigation.primaryLabel;
+---
+
+<header class="site-header" id="top" data-site-header>
+  <button
+    class="menu-toggle"
+    type="button"
+    aria-label={menuLabel}
+    aria-expanded="false"
+    aria-controls="primary-navigation"
+    data-menu-label={menuLabel}
+    data-menu-close-label={closeMenuLabel}
+    data-menu-toggle
+  >
+    <span class="menu-toggle-copy" aria-hidden="true">
+      <span class="menu-toggle-label menu-toggle-label--closed">{menuLabel}</span>
+      <span class="menu-toggle-label menu-toggle-label--open">{closeMenuLabel}</span>
+    </span>
+    <span class="menu-toggle-mark" aria-hidden="true"></span>
+  </button>
+
+  <nav
+    class="primary-nav"
+    id="primary-navigation"
+    aria-label={primaryLabel}
+    data-site-nav
+  >
+    {
+      navigationItems.map((item, itemIndex) => (
+        <>
+          {itemIndex > 0 && <span class="nav-divider" aria-hidden="true">/</span>}
+          <a href={item.href}>
+            <span class="nav-item-index" aria-hidden="true">{item.index}</span>
+            <span class="nav-item-copy">
+              {
+                isEnglish ? (
+                  <span class="nav-item-label" lang="en">{item.label}</span>
+                ) : (
+                  <span class="nav-item-zh" lang="zh-CN">{item.label}</span>
+                )
+              }
+            </span>
+            <span class="nav-item-arrow" aria-hidden="true">→</span>
+          </a>
+        </>
+      ))
+    }
+    <span class="nav-divider" aria-hidden="true">/</span>
+  </nav>
+
+  <a
+    class="language-switch"
+    href={languageSwitchUrl}
+    hreflang={alternateLocale}
+    lang="en"
+    aria-label={siteContent.navigation.languageSwitchAria}
+  >
+    <span class="nav-item-label">{languageSwitchLabel}</span>
+  </a>
+</header>
+
+<script>
+  const siteHeader = document.querySelector<HTMLElement>('[data-site-header]');
+  const menuButton = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+  const navigation = document.querySelector<HTMLElement>('[data-site-nav]');
+  const mobileMenuQuery = window.matchMedia('(max-width: 820px)');
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if (siteHeader && menuButton && navigation) {
+    const menuCloseFallbackMs = 360;
+    let closeTimer: number | undefined;
+
+    const finishMenuClose = () => {
+      if (closeTimer !== undefined) {
+        window.clearTimeout(closeTimer);
+        closeTimer = undefined;
+      }
+
+      siteHeader.removeAttribute('data-menu-closing');
+      siteHeader.style.removeProperty('--mobile-menu-closing-height');
+    };
+
+    const setMenuOpen = (open: boolean, returnFocus = false, animate = true) => {
+      const wasOpen = menuButton.getAttribute('aria-expanded') === 'true';
+      const shouldAnimateClose =
+        !open && animate && wasOpen && mobileMenuQuery.matches && !reducedMotionQuery.matches;
+      const closingPanelHeight = shouldAnimateClose ? navigation.getBoundingClientRect().height : 0;
+
+      finishMenuClose();
+      menuButton.setAttribute('aria-expanded', String(open));
+      menuButton.setAttribute(
+        'aria-label',
+        open
+          ? (menuButton.dataset.menuCloseLabel ?? 'Close menu')
+          : (menuButton.dataset.menuLabel ?? 'Menu'),
+      );
+      siteHeader.toggleAttribute('data-menu-open', open);
+      navigation.classList.toggle('is-open', open);
+      navigation.toggleAttribute('inert', mobileMenuQuery.matches && !open);
+
+      if (shouldAnimateClose) {
+        siteHeader.style.setProperty('--mobile-menu-closing-height', `${closingPanelHeight}px`);
+        siteHeader.setAttribute('data-menu-closing', '');
+        closeTimer = window.setTimeout(finishMenuClose, menuCloseFallbackMs);
+      }
+
+      if (returnFocus) menuButton.focus();
+    };
+
+    menuButton.addEventListener('click', () => {
+      const expanded = menuButton.getAttribute('aria-expanded') === 'true';
+      setMenuOpen(!expanded);
+    });
+
+    navigation.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest('a')) return;
+      setMenuOpen(false, mobileMenuQuery.matches);
+    });
+
+    document.addEventListener('click', (event) => {
+      if (menuButton.getAttribute('aria-expanded') !== 'true') return;
+      const target = event.target;
+      if (!(target instanceof Node) || siteHeader.contains(target)) return;
+      setMenuOpen(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || menuButton.getAttribute('aria-expanded') !== 'true') return;
+      setMenuOpen(false, true);
+    });
+
+    navigation.addEventListener('animationend', (event) => {
+      if (
+        event.target !== navigation ||
+        event.animationName !== 'mobile-menu-close' ||
+        !siteHeader.hasAttribute('data-menu-closing')
+      ) {
+        return;
+      }
+
+      finishMenuClose();
+    });
+
+    mobileMenuQuery.addEventListener('change', () => setMenuOpen(false, false, false));
+    reducedMotionQuery.addEventListener('change', (event) => {
+      if (event.matches) finishMenuClose();
+    });
+
+    setMenuOpen(false, false, false);
+    siteHeader.setAttribute('data-menu-ready', '');
+    document.documentElement.removeAttribute('data-menu-pending');
+  }
+</script>

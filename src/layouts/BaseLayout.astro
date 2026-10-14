@@ -1,0 +1,139 @@
+---
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '../styles/global.css';
+import { siteConfig } from '../config/site';
+import { localeSites, siteContent } from '../i18n';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = siteConfig.title,
+  description = siteConfig.description,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, siteConfig.url);
+const chineseAlternate = new URL(Astro.url.pathname, localeSites['zh-CN'].url);
+const englishAlternate = new URL(Astro.url.pathname, localeSites.en.url);
+const socialImage = new URL('/apple-touch-icon.png', siteConfig.url);
+const socialImageAlt = `${siteConfig.name} ${siteContent.layout.siteIcon}`;
+const websiteId = new URL('/#website', siteConfig.url).href;
+const profilePageId = new URL('#profile', canonical).href;
+const personId = new URL('/#person', siteConfig.url).href;
+const personSchema = {
+  '@type': 'Person',
+  '@id': personId,
+  name: siteConfig.name,
+  alternateName: siteConfig.alternateNames,
+  url: siteConfig.url,
+  email: `mailto:${siteConfig.email}`,
+  sameAs: [
+    siteConfig.alternate.url,
+    siteConfig.photoArchiveUrl,
+    siteConfig.social.github,
+    siteConfig.social.instagram,
+  ],
+  knowsAbout: siteConfig.knowsAbout,
+  mainEntityOfPage: { '@id': profilePageId },
+};
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': websiteId,
+      url: siteConfig.url,
+      name: siteConfig.name,
+      description,
+      inLanguage: siteConfig.htmlLang,
+      creator: { '@id': personId },
+    },
+    {
+      '@type': 'ProfilePage',
+      '@id': profilePageId,
+      url: canonical.href,
+      name: title,
+      description,
+      inLanguage: siteConfig.htmlLang,
+      isPartOf: { '@id': websiteId },
+      mainEntity: { '@id': personId },
+    },
+    personSchema,
+  ],
+};
+---
+
+<!doctype html>
+<html lang={siteConfig.htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <script is:inline>
+      document.documentElement.setAttribute('data-menu-pending', '');
+      document.addEventListener(
+        'DOMContentLoaded',
+        function () {
+          if (!document.querySelector('[data-site-header][data-menu-ready]')) {
+            document.documentElement.removeAttribute('data-menu-pending');
+          }
+        },
+        { once: true },
+      );
+    </script>
+    <script
+      is:inline
+      define:vars={{ analyticsId: siteConfig.analyticsId, canonicalHostname: siteConfig.hostname }}
+    >
+      if (window.location.hostname === canonicalHostname) {
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+          window.dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', analyticsId);
+
+        const analyticsScript = document.createElement('script');
+        analyticsScript.async = true;
+        analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(analyticsId)}`;
+        document.head.append(analyticsScript);
+      }
+    </script>
+    <meta name="description" content={description} />
+    <meta name="author" content={siteConfig.name} />
+    <meta name="theme-color" content="#111a2b" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="zh-CN" href={chineseAlternate} />
+    <link rel="alternate" hreflang="en" href={englishAlternate} />
+    <link rel="alternate" hreflang="x-default" href={chineseAlternate} />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="profile" />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={siteConfig.ogLocale} />
+    <meta property="og:locale:alternate" content={siteConfig.ogAlternateLocale} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="180" />
+    <meta property="og:image:height" content="180" />
+    <meta property="og:image:alt" content={socialImageAlt} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:alt" content={socialImageAlt} />
+    <title>{title}</title>
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">{siteContent.layout.skipLink}</a>
+    <slot />
+  </body>
+</html>

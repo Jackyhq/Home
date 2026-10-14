@@ -1,0 +1,196 @@
+---
+import { Icon } from 'astro-icon/components';
+import avatar from '../assets/avatar.svg';
+import avatarMonochrome from '../assets/avatar-monochrome.svg';
+import { siteConfig } from '../config/site';
+import { currentLocale, isEnglish, localizedContent, siteContent } from '../i18n';
+
+const englishContent = localizedContent.en.about;
+const chineseContent = localizedContent['zh-CN'].about;
+const avatarLabels = { monochrome: 'MONOCHROME', colour: 'COLOUR', shortMonochrome: 'B&W' };
+---
+
+<section
+  class="about"
+  id="about"
+  aria-labelledby="about-title"
+  data-about-reveal
+  data-reveal-state="start"
+  data-avatar-state="start"
+  lang={currentLocale}
+>
+  <div class="about-sticky">
+    <div class="about-inner">
+      <header class="about-heading">
+        <p>02 <span aria-hidden="true">/</span> <span lang="en">{englishContent.eyebrow}</span></p>
+        <h2 id="about-title">
+          <span class="about-title-primary" lang="en">{englishContent.title}</span>
+          {
+            !isEnglish && (
+              <span class="about-title-translation">
+                <span class="about-title-secondary" lang="zh-CN">{chineseContent.title}</span>
+              </span>
+            )
+          }
+        </h2>
+      </header>
+
+      <div class="about-layout">
+        <div class="about-copy">
+          {
+            englishContent.paragraphs.map((englishParagraph, index) => (
+              <div class="about-pair">
+                {
+                  isEnglish ? (
+                    <p class="about-paragraph" lang="en">{englishParagraph}</p>
+                  ) : (
+                    <p class="about-pair-zh" lang="zh-CN">
+                      {chineseContent.paragraphs[index]}
+                    </p>
+                  )
+                }
+              </div>
+            ))
+          }
+
+          <nav
+            class="about-contact"
+            aria-label={isEnglish ? englishContent.contact : `${chineseContent.contact} / ${englishContent.contact}`}
+          >
+            <p>
+              {
+                isEnglish ? (
+                  <span lang="en">{englishContent.contact}</span>
+                ) : (
+                  <>
+                    <span lang="zh-CN">{chineseContent.contact}</span>
+                    {' '}<span aria-hidden="true">/</span>{' '}
+                    <span lang="en">{englishContent.contact}</span>
+                  </>
+                )
+              }
+            </p>
+            <div class="about-contact-links">
+              <a
+                href={siteConfig.social.github}
+                target="_blank"
+                rel="me noopener noreferrer"
+              >
+                <span>GitHub</span>
+                <span>{siteConfig.socialHandles.github}</span>
+              </a>
+              <a
+                href={siteConfig.social.instagram}
+                target="_blank"
+                rel="me noopener noreferrer"
+              >
+                <span>Instagram</span>
+                <span>{siteConfig.socialHandles.instagram}</span>
+              </a>
+              <a href={`mailto:${siteConfig.email}`}>
+                <span lang="en">{englishContent.email}</span>
+                <span>{siteConfig.email}</span>
+              </a>
+            </div>
+          </nav>
+        </div>
+
+        <figure class="avatar-stage">
+          <span class="avatar-label avatar-label-start" aria-hidden="true">{avatarLabels.monochrome} / 00</span>
+          <div class="avatar-frame">
+            <img
+              src={avatarMonochrome.src}
+              alt={siteContent.about.avatarAlt}
+              width="196"
+              height="196"
+              loading="eager"
+            />
+            <img
+              class="avatar-colour"
+              src={avatar.src}
+              alt=""
+              width="196"
+              height="196"
+              aria-hidden="true"
+              loading="eager"
+            />
+            <span class="avatar-scanline" aria-hidden="true"></span>
+          </div>
+          <span class="avatar-label" aria-hidden="true">{avatarLabels.colour} / 100</span>
+          <figcaption class="avatar-progress" aria-hidden="true">
+            <span>{avatarLabels.shortMonochrome}</span>
+            <span class="avatar-progress-value">000%</span>
+            <span>{avatarLabels.colour}</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <a class="scroll-cue about-scroll-hint" href="#photography">
+      <Icon name="ph:arrow-down" size={24} aria-hidden="true" />
+      <span>
+        <span lang={currentLocale}>{isEnglish ? englishContent.scroll : chineseContent.scroll}</span>
+      </span>
+    </a>
+  </div>
+</section>
+
+<script>
+  const section = document.querySelector<HTMLElement>('[data-about-reveal]');
+
+  if (section) {
+    const progressValue = section.querySelector<HTMLElement>('.avatar-progress-value');
+    const avatarFrame = section.querySelector<HTMLElement>('.avatar-frame');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const naturalFlowLayout = window.matchMedia(
+      '(max-width: 820px), (min-width: 821px) and (max-height: 30rem)',
+    );
+    const naturalRevealStart = 0.99;
+    const naturalRevealEnd = 0.505;
+    let frame = 0;
+
+    const clamp = (value: number) => Math.min(1, Math.max(0, value));
+
+    const render = () => {
+      frame = 0;
+
+      if (reducedMotion.matches) {
+        section.style.setProperty('--about-progress', '100%');
+        section.dataset.revealState = 'complete';
+        section.dataset.avatarState = 'complete';
+        if (progressValue) progressValue.textContent = '100%';
+        return;
+      }
+
+      let progress = 0;
+
+      if (naturalFlowLayout.matches && avatarFrame) {
+        const avatarBottom = avatarFrame.getBoundingClientRect().bottom;
+        const startLine = window.innerHeight * naturalRevealStart;
+        const endLine = window.innerHeight * naturalRevealEnd;
+        progress = clamp((startLine - avatarBottom) / Math.max(startLine - endLine, 1));
+      } else {
+        const rect = section.getBoundingClientRect();
+        const scrollRange = Math.max(section.offsetHeight - window.innerHeight, 1);
+        progress = clamp(-rect.top / scrollRange);
+      }
+
+      const percent = Math.round(progress * 100);
+
+      section.style.setProperty('--about-progress', `${(progress * 100).toFixed(2)}%`);
+      section.dataset.revealState = progress >= 0.995 ? 'complete' : progress <= 0.005 ? 'start' : 'revealing';
+      section.dataset.avatarState = progress >= 0.995 ? 'complete' : 'revealing';
+      if (progressValue) progressValue.textContent = `${percent.toString().padStart(3, '0')}%`;
+    };
+
+    const requestRender = () => {
+      if (!frame) frame = window.requestAnimationFrame(render);
+    };
+
+    render();
+    window.addEventListener('scroll', requestRender, { passive: true });
+    window.addEventListener('resize', requestRender);
+    reducedMotion.addEventListener('change', requestRender);
+    naturalFlowLayout.addEventListener('change', requestRender);
+  }
+</script>

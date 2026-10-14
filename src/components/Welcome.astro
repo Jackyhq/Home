@@ -1,0 +1,51 @@
+---
+import { Icon } from 'astro-icon/components';
+import HeroPixelWave from './HeroPixelWave.astro';
+import { currentLocale, isEnglish, localizedContent } from '../i18n';
+
+const englishContent = localizedContent.en.welcome;
+const chineseContent = localizedContent['zh-CN'].welcome;
+---
+
+<section class="welcome" id="home" aria-labelledby="welcome-title" lang={currentLocale}>
+  <HeroPixelWave />
+
+  <div class="welcome-copy">
+    <p class="welcome-kicker">
+      {
+        isEnglish ? (
+          <span lang="en">{englishContent.kicker}</span>
+        ) : (
+          <>
+            <span lang="zh-CN">{chineseContent.kicker}</span>
+            {' '}<span aria-hidden="true">/</span>{' '}
+            <span lang="en">{englishContent.kicker}</span>
+          </>
+        )
+      }
+    </p>
+    <h1 id="welcome-title">
+      <span lang="en">{englishContent.hello}</span>
+      <span lang="en">{englishContent.nameLead} <strong>{englishContent.name}</strong></span>
+      <span class="welcome-subtitle">
+        {
+          isEnglish ? (
+            <span lang="en">{englishContent.subtitle}</span>
+          ) : (
+            <>
+              <span lang="zh-CN">{chineseContent.subtitle}</span>
+              <span lang="en">{englishContent.subtitle}</span>
+            </>
+          )
+        }
+      </span>
+    </h1>
+  </div>
+
+  <a class="scroll-cue" href="#about">
+    <Icon name="ph:arrow-down" size={24} aria-hidden="true" />
+    <span>
+      <span lang={currentLocale}>{isEnglish ? englishContent.scroll : chineseContent.scroll}</span>
+    </span>
+  </a>
+</section>

@@ -1,0 +1,556 @@
+---
+import { Icon } from 'astro-icon/components';
+import { siteConfig } from '../config/site';
+import { localizedPhotographyContent } from '../i18n/photography';
+import type { FeaturedPhoto } from '../lib/photos';
+
+interface Props {
+  photos: FeaturedPhoto[];
+}
+
+const { photos } = Astro.props;
+const isEnglish = siteConfig.locale === 'en';
+const locale = siteConfig.locale;
+const englishCopy = localizedPhotographyContent.en;
+const chineseCopy = localizedPhotographyContent['zh-CN'];
+const copy = isEnglish ? englishCopy : chineseCopy;
+const mobilePhotoSizing = {
+  minHeightRem: 12.5,
+  viewportWidthPercent: 88,
+  availableHeightOffsetRem: 27,
+  maxHeightRem: 24,
+} as const;
+const formatCssNumber = (value: number) => Number(value.toFixed(3)).toString();
+const getMobilePhotoWidth = (photo: FeaturedPhoto) => {
+  const ratio = photo.width / photo.height;
+
+  return `clamp(${formatCssNumber(ratio * mobilePhotoSizing.minHeightRem)}rem, min(${formatCssNumber(ratio * mobilePhotoSizing.viewportWidthPercent)}vw, calc(${formatCssNumber(ratio * 100)}dvh - ${formatCssNumber(ratio * mobilePhotoSizing.availableHeightOffsetRem)}rem)), ${formatCssNumber(ratio * mobilePhotoSizing.maxHeightRem)}rem)`;
+};
+const getMobilePhotoSizes = (photo: FeaturedPhoto) =>
+  `${formatCssNumber((photo.width / photo.height) * mobilePhotoSizing.viewportWidthPercent)}vw`;
+---
+
+<section
+  class="recent"
+  id="photography"
+  aria-labelledby="recent-title"
+  data-photo-story
+  data-locale={locale}
+  data-photo-mode="static"
+  data-lane-count="0"
+>
+  <div class="recent-viewport">
+    <div class="recent-content">
+      <div class="recent-inner">
+        <div class="section-heading">
+          <div>
+            <h2 id="recent-title">
+              {
+                isEnglish ? (
+                  <span class="recent-title-primary" lang="en">{englishCopy.title}</span>
+                ) : (
+                  <>
+                    <span class="recent-title-primary" lang="en">{englishCopy.title}</span>
+                    <span class="recent-title-translation">
+                      <span class="recent-title-secondary" lang="zh-CN">{chineseCopy.title}</span>
+                    </span>
+                  </>
+                )
+              }
+            </h2>
+          </div>
+        </div>
+
+        <div class="recent-intro">
+          <div class="recent-intro-copy">
+            <p class="photo-selection-meta" data-photo-selection-meta>
+              {
+                isEnglish ? (
+                  <span lang="en" data-photo-selection-en>{englishCopy.selection(photos.length)}</span>
+                ) : (
+                  <span lang="zh-CN" data-photo-selection-zh>{chineseCopy.selection(photos.length)}</span>
+                )
+              }
+              <Icon name="ph:arrow-right" size={16} aria-hidden="true" />
+            </p>
+          </div>
+
+          <a
+            class="photo-archive-link"
+            href={siteConfig.photoArchiveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="photo-archive-copy">
+              {
+                isEnglish ? (
+                  <span class="photo-archive-primary" lang="en">
+                    {englishCopy.archiveLink}
+                  </span>
+                ) : (
+                  <span class="photo-archive-primary" lang="zh-CN">
+                    {chineseCopy.archiveLink}
+                  </span>
+                )
+              }
+            </span>
+            <Icon name="ph:arrow-up-right" size={20} aria-hidden="true" />
+          </a>
+        </div>
+
+        <div class="photo-stage" data-photo-stage data-nosnippet>
+          <ol class="photo-pool" data-photo-pool aria-label={copy.selection(photos.length)}>
+            {
+              photos.map((photo, index) => (
+                <li
+                  class="photo-item"
+                  data-photo-item
+                  data-photo-index={index}
+                  style={`--photo-ratio: ${photo.width} / ${photo.height}; --mobile-photo-width: ${getMobilePhotoWidth(photo)}`}
+                >
+                  <a
+                    href={photo.photoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-labelledby={`photo-title-${index}`}
+                  >
+                    <picture>
+                      <source
+                        type="image/webp"
+                        srcset={photo.thumbnailWebpSrcSet}
+                        sizes={`(max-width: 820px) ${getMobilePhotoSizes(photo)}, 32vw`}
+                      />
+                      <img
+                        src={photo.thumbnailUrl}
+                        alt={isEnglish ? photo.descriptionEn : photo.description}
+                        width={photo.width}
+                        height={photo.height}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </picture>
+                    <span class="photo-title" id={`photo-title-${index}`}>
+                      <span class="photo-title-primary" lang={locale}>
+                        {isEnglish ? photo.titleEn : photo.title}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+
+        <p class="visually-hidden" aria-live="polite" aria-atomic="true" data-photo-status>
+          {
+            isEnglish ? (
+              <span lang="en">{englishCopy.status(photos.length)}</span>
+            ) : (
+              <>
+                <span lang="zh-CN">{chineseCopy.status(photos.length)}</span>
+                <span lang="en">{englishCopy.status(photos.length)}</span>
+              </>
+            )
+          }
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { localizedPhotographyContent } from '../i18n/photography';
+  import { partitionItemsByVisualWidth } from '../lib/photo-layout';
+
+  const story = document.querySelector<HTMLElement>('[data-photo-story]');
+
+  if (story) {
+    const stage = story.querySelector<HTMLElement>('[data-photo-stage]');
+    const pool = story.querySelector<HTMLOListElement>('[data-photo-pool]');
+    const status = story.querySelector<HTMLElement>('[data-photo-status]');
+    const recentIntro = story.querySelector<HTMLElement>('.recent-intro');
+    const selectionMetaEn = story.querySelector<HTMLElement>('[data-photo-selection-en]');
+    const selectionMetaZh = story.querySelector<HTMLElement>('[data-photo-selection-zh]');
+    const archiveLink = story.querySelector<HTMLAnchorElement>('.photo-archive-link');
+    const siteFooter = document.querySelector<HTMLElement>('.site-shell > .site-footer');
+    const items = Array.from(story.querySelectorAll<HTMLElement>('[data-photo-item]')).sort(
+      (a, b) => Number(a.dataset.photoIndex) - Number(b.dataset.photoIndex),
+    );
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const isEnglish = story.dataset.locale === 'en';
+    const englishCopy = localizedPhotographyContent.en;
+    const chineseCopy = localizedPhotographyContent['zh-CN'];
+    const copy = isEnglish ? englishCopy : chineseCopy;
+
+    let laneShell: HTMLDivElement | undefined;
+    let currentMode = '';
+    let currentLaneCount = 0;
+    let currentVisibleCount = 0;
+    let lastStatusKey = '';
+    let footerFrame = 0;
+    let resizeFrame = 0;
+
+    const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+    const updateStatus = (englishMessage: string, chineseMessage?: string) => {
+      if (!status) return;
+      const statusKey = chineseMessage
+        ? `${englishMessage}\n${chineseMessage}`
+        : englishMessage;
+      if (statusKey === lastStatusKey) return;
+      lastStatusKey = statusKey;
+
+      const englishStatus = document.createElement('span');
+      englishStatus.lang = 'en';
+      englishStatus.textContent = englishMessage;
+
+      if (isEnglish || !chineseMessage) {
+        status.replaceChildren(englishStatus);
+        return;
+      }
+
+      const chineseStatus = document.createElement('span');
+      chineseStatus.lang = 'zh-CN';
+      chineseStatus.textContent = chineseMessage;
+      status.replaceChildren(chineseStatus, document.createTextNode(' '), englishStatus);
+    };
+    const setFooterAccess = (isAccessible: boolean) => {
+      siteFooter?.toggleAttribute('inert', !isAccessible);
+    };
+
+    const getLaneCount = () => {
+      if (window.innerHeight <= 480) return 1;
+
+      const hasRoomForThreeLargeRows =
+        window.innerWidth >= 1600 &&
+        window.innerHeight >= Math.max(1000, window.innerWidth * 0.72);
+      if (hasRoomForThreeLargeRows) return 3;
+      return 2;
+    };
+
+    const getItemRatio = (item: HTMLElement) => {
+      const image = item.querySelector<HTMLImageElement>('img');
+      if (!image) return 1;
+
+      const width = Number(image.getAttribute('width'));
+      const height = Number(image.getAttribute('height'));
+      return width > 0 && height > 0 ? width / height : 1;
+    };
+
+    const getVisibleCount = (mode: string, laneCount: number) => {
+      if (mode === 'mobile') return Math.min(10, items.length);
+
+      const maximumCount = Math.min(30, items.length);
+      if (!stage || laneCount < 1) return maximumCount;
+
+      const stageWidth = Math.max(1, stage.clientWidth);
+      const stageHeight = Math.max(1, stage.clientHeight);
+      const laneGap = clamp(window.innerWidth * 0.0075, 5.6, 11.2);
+      const rowGap = clamp(window.innerHeight * 0.008, 5.6, 10.4);
+      const titleAllowance = clamp(window.innerHeight * 0.05, 48, 56);
+      const heightCap = window.innerHeight * (laneCount === 3 ? 0.3 : 0.4);
+
+      for (let itemLimit = laneCount; itemLimit <= maximumCount; itemLimit += 1) {
+        const partitions = partitionItemsByVisualWidth(
+          items.slice(0, itemLimit),
+          laneCount,
+          getItemRatio,
+        );
+        const laneMetrics = partitions.map((laneItems) => {
+          const ratioTotal = laneItems.reduce((total, item) => total + getItemRatio(item), 0);
+          const gapsWidth = laneGap * Math.max(0, laneItems.length - 1);
+          const fullWidthHeight = (stageWidth - gapsWidth) / Math.max(1, ratioTotal);
+          return {
+            ratioTotal,
+            gapsWidth,
+            height: Math.max(1, Math.min(fullWidthHeight, heightCap)),
+          };
+        });
+        const availablePictureHeight = Math.max(
+          1,
+          stageHeight -
+            titleAllowance * laneCount -
+            rowGap * Math.max(0, laneCount - 1),
+        );
+        const requiredPictureHeight = laneMetrics.reduce(
+          (total, laneMetric) => total + laneMetric.height,
+          0,
+        );
+        const verticalScale = Math.min(
+          1,
+          availablePictureHeight / Math.max(1, requiredPictureHeight),
+        );
+        const fills = laneMetrics.map(({ ratioTotal, gapsWidth, height }) =>
+          Math.min(1, (ratioTotal * height * verticalScale + gapsWidth) / stageWidth),
+        );
+
+        if (Math.min(...fills) >= 0.96 && Math.max(...fills) - Math.min(...fills) <= 0.05) {
+          return itemLimit;
+        }
+      }
+
+      return maximumCount;
+    };
+
+    const restorePool = () => {
+      laneShell?.remove();
+      laneShell = undefined;
+      items.forEach((item) => pool?.append(item));
+      if (pool) pool.hidden = false;
+    };
+
+    const distributeItems = (laneCount: number, itemLimit = items.length) => {
+      if (!stage || !pool) return;
+
+      restorePool();
+      pool.hidden = true;
+      const nextLaneShell = document.createElement('div');
+      laneShell = nextLaneShell;
+      nextLaneShell.className = 'photo-lanes';
+      nextLaneShell.setAttribute('role', 'group');
+      nextLaneShell.setAttribute(
+        'aria-label',
+        isEnglish
+          ? `${itemLimit} recent photographs in ${laneCount} rows`
+          : `近期 ${itemLimit} 张相片，共 ${laneCount} 行`,
+      );
+
+      const visibleItems = items.slice(0, itemLimit);
+      const partitions = partitionItemsByVisualWidth(visibleItems, laneCount, getItemRatio);
+      let orderedItemStart = 1;
+
+      partitions.forEach((laneItems, laneIndex) => {
+        const lane = document.createElement('ol');
+        lane.className = 'photo-lane';
+        lane.dataset.photoLane = String(laneIndex);
+        lane.start = orderedItemStart;
+        lane.setAttribute(
+          'aria-label',
+          isEnglish ? `Row ${laneIndex + 1}` : `第 ${laneIndex + 1} 行`,
+        );
+
+        laneItems.forEach((item) => lane.append(item));
+        orderedItemStart += laneItems.length;
+
+        nextLaneShell.append(lane);
+      });
+
+      stage.append(nextLaneShell);
+    };
+
+    const fitDesktopLanes = () => {
+      if (!stage || !laneShell || currentMode !== 'desktop') return;
+
+      const lanes = Array.from(laneShell.querySelectorAll<HTMLElement>('[data-photo-lane]'));
+      const maxHeight = window.innerHeight * (currentLaneCount === 3 ? 0.3 : 0.4);
+      const rowGap = Number.parseFloat(window.getComputedStyle(laneShell).rowGap || '0');
+      const laneHeights: number[] = [];
+
+      const applyLaneHeight = (lane: HTMLElement, laneItems: HTMLElement[], height: number) => {
+        lane.style.setProperty('--lane-photo-height', `${height.toFixed(2)}px`);
+        laneItems.forEach((item) => {
+          const ratio = getItemRatio(item);
+          item.style.setProperty('--lane-photo-width', `${(height * ratio).toFixed(2)}px`);
+        });
+      };
+
+      lanes.forEach((lane) => {
+        const laneItems = Array.from(lane.querySelectorAll<HTMLElement>('[data-photo-item]'));
+        const ratioTotal = laneItems.reduce((total, item) => total + getItemRatio(item), 0);
+        const gap = Number.parseFloat(window.getComputedStyle(lane).columnGap || '0');
+        const availableWidth = Math.max(1, stage.clientWidth - gap * Math.max(0, laneItems.length - 1));
+        const fittedHeight = Math.min(maxHeight, availableWidth / Math.max(1, ratioTotal));
+
+        const resolvedHeight = Math.max(1, fittedHeight);
+        laneHeights.push(resolvedHeight);
+        applyLaneHeight(lane, laneItems, resolvedHeight);
+      });
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        const titleHeights = lanes.map((lane) =>
+          Math.max(
+            0,
+            ...Array.from(lane.querySelectorAll<HTMLElement>('.photo-title')).map(
+              (title) => title.getBoundingClientRect().height,
+            ),
+          ),
+        );
+        const availablePictureHeight = Math.max(
+          0,
+          stage.clientHeight -
+            rowGap * Math.max(0, lanes.length - 1) -
+            titleHeights.reduce((total, height) => total + height, 0),
+        );
+        const currentPictureHeight = laneHeights.reduce((total, height) => total + height, 0);
+        const scale = Math.min(1, availablePictureHeight / Math.max(1, currentPictureHeight));
+
+        if (scale >= 0.995) break;
+
+        lanes.forEach((lane, laneIndex) => {
+          const laneItems = Array.from(lane.querySelectorAll<HTMLElement>('[data-photo-item]'));
+          laneHeights[laneIndex] = Math.max(1, laneHeights[laneIndex] * scale);
+          applyLaneHeight(lane, laneItems, laneHeights[laneIndex]);
+        });
+      }
+    };
+
+    const getDesktopLaneFills = () => {
+      if (!stage || !laneShell || currentMode !== 'desktop') return [];
+
+      const stageWidth = Math.max(1, stage.getBoundingClientRect().width);
+      return Array.from(laneShell.querySelectorAll<HTMLElement>('[data-photo-lane]')).map(
+        (lane) => {
+          const itemRects = Array.from(
+            lane.querySelectorAll<HTMLElement>('[data-photo-item]:not([hidden])'),
+          ).map((item) => item.getBoundingClientRect());
+          if (itemRects.length === 0) return 0;
+
+          const contentLeft = Math.min(...itemRects.map((rect) => rect.left));
+          const contentRight = Math.max(...itemRects.map((rect) => rect.right));
+          return (contentRight - contentLeft) / stageWidth;
+        },
+      );
+    };
+
+    const layout = () => {
+      const isMobileViewport = window.innerWidth <= 820;
+      const nextMode = isMobileViewport ? 'mobile' : reduceMotion.matches ? 'static' : 'desktop';
+      const responsiveLaneCount = getLaneCount();
+      const nextLaneCount = nextMode === 'desktop' ? responsiveLaneCount : nextMode === 'mobile' ? 1 : 0;
+      const activeElementBeforeLayout = document.activeElement;
+      const archiveHadFocus = Boolean(
+        archiveLink &&
+          activeElementBeforeLayout instanceof Element &&
+          archiveLink.contains(activeElementBeforeLayout),
+      );
+      const focusedPhotoItem =
+        activeElementBeforeLayout instanceof Element
+          ? activeElementBeforeLayout.closest<HTMLElement>('[data-photo-item]')
+          : null;
+      const focusedPhotoIndex = focusedPhotoItem?.dataset.photoIndex;
+
+      story.dataset.photoMode = nextMode;
+      story.dataset.laneCount = String(nextLaneCount);
+
+      if (archiveLink && recentIntro && stage) {
+        if (nextMode === 'mobile' && archiveLink.previousElementSibling !== stage) {
+          stage.insertAdjacentElement('afterend', archiveLink);
+        } else if (nextMode !== 'mobile' && archiveLink.parentElement !== recentIntro) {
+          recentIntro.append(archiveLink);
+        }
+      }
+
+      let visibleCount = getVisibleCount(
+        nextMode,
+        nextMode === 'mobile' ? 1 : responsiveLaneCount,
+      );
+
+      if (
+        nextMode !== currentMode ||
+        nextLaneCount !== currentLaneCount ||
+        visibleCount !== currentVisibleCount
+      ) {
+        currentMode = nextMode;
+        currentLaneCount = nextLaneCount;
+        currentVisibleCount = visibleCount;
+
+        if (nextMode === 'desktop') distributeItems(nextLaneCount, visibleCount);
+        else if (nextMode === 'mobile') distributeItems(1, visibleCount);
+        else restorePool();
+      }
+
+      const updateItemVisibility = () => {
+        items.forEach((item, index) => {
+          item.hidden = index >= visibleCount;
+        });
+      };
+
+      updateItemVisibility();
+      fitDesktopLanes();
+
+      if (nextMode === 'desktop') {
+        const maximumCount = Math.min(30, items.length);
+        while (
+          visibleCount < maximumCount &&
+          Math.min(...getDesktopLaneFills()) < 0.985
+        ) {
+          visibleCount += 1;
+          currentVisibleCount = visibleCount;
+          distributeItems(nextLaneCount, visibleCount);
+          updateItemVisibility();
+          fitDesktopLanes();
+        }
+      }
+
+      story.dataset.visibleCount = String(visibleCount);
+      setFooterAccess(isMobileViewport);
+      story.style.setProperty('--photo-footer-height', `${siteFooter?.offsetHeight ?? 88}px`);
+      pool?.setAttribute('aria-label', copy.selection(visibleCount));
+      if (selectionMetaEn) selectionMetaEn.textContent = englishCopy.selection(visibleCount);
+      if (selectionMetaZh) selectionMetaZh.textContent = chineseCopy.selection(visibleCount);
+
+      if (nextMode === 'mobile') {
+        updateStatus(
+          englishCopy.swipeStatus(visibleCount),
+          isEnglish ? undefined : chineseCopy.swipeStatus(visibleCount),
+        );
+      } else {
+        updateStatus(
+          englishCopy.status(visibleCount),
+          isEnglish ? undefined : chineseCopy.status(visibleCount),
+        );
+      }
+
+      requestFooterAccessUpdate();
+
+      if (archiveHadFocus) {
+        window.requestAnimationFrame(() => archiveLink?.focus({ preventScroll: true }));
+      } else if (focusedPhotoIndex !== undefined) {
+        const restoreFocusAfterLayout = () => {
+          const focusedItem = items.find((item) => item.dataset.photoIndex === focusedPhotoIndex);
+          const nextFocusTarget =
+            focusedItem && !focusedItem.hidden
+              ? focusedItem.querySelector<HTMLAnchorElement>('a')
+              : archiveLink;
+          nextFocusTarget?.focus({ preventScroll: true });
+        };
+
+        window.requestAnimationFrame(restoreFocusAfterLayout);
+      }
+    };
+
+    const updateFooterAccess = () => {
+      footerFrame = 0;
+      if (currentMode === 'mobile') return;
+
+      const storyRect = story.getBoundingClientRect();
+
+      if (window.innerWidth > 820) {
+        const footerTop = window.innerHeight - (siteFooter?.offsetHeight ?? 0);
+        const photographyCoversFooter =
+          storyRect.top <= footerTop + 0.5 && storyRect.bottom >= window.innerHeight - 0.5;
+        setFooterAccess(photographyCoversFooter);
+      }
+    };
+
+    const requestFooterAccessUpdate = () => {
+      if (footerFrame) return;
+      footerFrame = window.requestAnimationFrame(updateFooterAccess);
+    };
+
+    window.addEventListener('scroll', requestFooterAccessUpdate, { passive: true });
+    window.addEventListener('resize', () => {
+      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = 0;
+        layout();
+      });
+    });
+    reduceMotion.addEventListener('change', layout);
+    document.fonts?.ready.then(() => {
+      if (story.isConnected) layout();
+    });
+
+    story.classList.add('is-enhanced');
+    layout();
+  }
+</script>

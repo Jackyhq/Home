@@ -1,0 +1,21 @@
+---
+import About from '../components/About.astro';
+import RecentPhotos from '../components/RecentPhotos.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Welcome from '../components/Welcome.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { featuredPhotos } from '../lib/photos';
+---
+
+<BaseLayout>
+  <div class="site-shell">
+    <SiteHeader />
+    <main id="main-content">
+      <Welcome />
+      <About />
+      <RecentPhotos photos={featuredPhotos.items} />
+    </main>
+    <SiteFooter />
+  </div>
+</BaseLayout>
