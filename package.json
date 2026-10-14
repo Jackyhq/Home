@@ -33,13 +33,13 @@
     "test:e2e:photo": "playwright test --grep @photography"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/sitemap": "^3.7.4",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@iconify-json/ph": "^1.2.2",
-    "astro": "^7.2.8",
+    "astro": "^7.3.8",
     "astro-icon": "^1.2.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
