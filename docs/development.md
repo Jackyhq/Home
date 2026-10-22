@@ -1,6 +1,6 @@
 # 开发指南
 
-最近审阅：2026-10-14
+最近审阅：2026-10-22
 
 ## 前置条件
 
@@ -44,6 +44,8 @@ pnpm exec playwright install chromium
 `pnpm dev` 在未设置 `SITE_LOCALE` 时解析为 `zh-CN`。语言切换链接始终指向两个正式域名，因此本地双版本检查应分别启动相应环境，或先运行 `pnpm build` 后分别提供 `dist/` 与 `dist-en/`。直接运行 `pnpm test:e2e:dist` 或 `pnpm test:e2e:en` 前必须确认对应产物是本次变更生成的最新版本。
 
 ## 依赖安全维护
+
+TypeScript 当前保持 `^5.9.3`。`astro check` 使用的 `@astrojs/check` 需要 TypeScript 的程序接口，当前兼容 TypeScript 5 和 6，尚不兼容 TypeScript 7。因此 Dependabot 暂时忽略 TypeScript `>=7.0.0` 的更新；待[上游兼容支持](https://github.com/withastro/roadmap/discussions/1321)就绪并通过双版本验证后再解除限制。
 
 当前工具链基线为 Astro `7.2.8`、Sharp `0.35.5`、js-yaml `4.3.2`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线，Astro 内容加载器和 `@astrojs/internal-helpers` 的 frontmatter 路径都必须解析到修复后的 js-yaml。
 
