@@ -1,10 +1,10 @@
 # 开发指南
 
-最近审阅：2026-10-14
+最近审阅：2026-10-22
 
 ## 前置条件
 
-- 仓库默认使用 Node.js 24（见 `.nvmrc`）；`package.json` 接受 22.19 至 24 范围内受支持的 Node 版本，以满足 Undici 的运行时要求。
+- 仓库默认使用 Node.js 24（见 `.nvmrc`）；`package.json` 接受 22.22 至 24 范围内受支持的 Node 版本，以满足 Astro 的运行时要求。
 - pnpm 10.19.0，建议通过 Corepack 使用。
 - Playwright 浏览器测试套件所需的 Chromium。
 
@@ -45,13 +45,15 @@ pnpm exec playwright install chromium
 
 ## 依赖安全维护
 
-当前工具链基线为 Astro `7.2.8`、Sharp `0.35.5`、js-yaml `4.3.2`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线，Astro 内容加载器和 `@astrojs/internal-helpers` 的 frontmatter 路径都必须解析到修复后的 js-yaml。
+当前工具链基线为 Astro `7.4.0`、Vite `8.3.4`、Sharp `0.35.5`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线。Astro 内容加载器与 frontmatter 改用 `@astrojs/internal-helpers/yaml`，由 `yaml` 的别名展开限制保护，不再直接消费 js-yaml。
 
-锁文件同时保持 Undici `8.11.2`、fast-uri `3.1.8` 与 devalue `5.9.4` 的修复基线。Undici 由 Astro 的 unifont 引入，fast-uri 由 `@astrojs/check` 的 YAML 语言服务经 ajv 引入，devalue 由 Astro 引入。项目产物为静态页面，这些依赖属于构建与开发工具链。
+锁文件同时保持 Undici `8.11.2`、fast-uri `3.1.8` 与 devalue `6.0.2` 的修复基线。Undici 由 Astro 的 unifont 引入，fast-uri 由 `@astrojs/check` 的 YAML 语言服务经 ajv 引入，devalue 由 Astro 引入。项目产物为静态页面，这些依赖属于构建与开发工具链。
 
-2026-10-14 的审计仍报告 `http-cache-semantics` 一条 High，[数据库公告](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)与[上游维护者](https://github.com/kornelski/http-cache-semantics/issues/56)存在争议。当前程序没有共享用户会话缓存或接收访客 `max-stale` 请求头的消费路径，因此不将该告警直接写成网站可利用的漏洞。后续维护时应重新核对公告和实际调用路径。
+Vite 内置的 launch-editor 已更新到 `2.14.2`，覆盖 Windows 路径规范化、百分号命令展开和 WSL 编辑器参数处理的三条告警；单独覆盖 launch-editor 依赖不能替换 Vite 内置代码。回归测试对锁定 Vite 包中的实际辅助函数模拟 Windows 与 WSL 环境，不启动真实编辑器。
 
-`pnpm test:unit` 包含 [`scripts/lib/dependency-security.test.ts`](../scripts/lib/dependency-security.test.ts)，通过实际消费路径验证 YAML 空合并源预算、URI 主机与端口校验、HTTP 响应大小限制和 Buffer 序列化边界，同时保留合法输入兼容性。该回归使用本地构造输入与禁用联网的 HTTP mock，不需要外部网络。
+`http-cache-semantics` 为 `4.3.0`，已超出[数据库公告](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)的受影响版本范围，但不能据此声称其 `max-stale` 行为已修复。[上游维护者](https://github.com/kornelski/http-cache-semantics/issues/56)仍对该公告有异议。Astro 只用该库计算构建时远程图片 TTL，不调用公告中的共享缓存复用接口，也不转发访客的 Cookie、Authorization 或缓存指令；回归覆盖不可缓存响应立即过期、普通公开响应 TTL 与条件重验证。
+
+`pnpm test:unit` 包含 [`dependency-security.test.ts`](../scripts/lib/dependency-security.test.ts) 与 [`editor-security.test.ts`](../scripts/lib/editor-security.test.ts)，通过实际消费路径验证 YAML 别名展开限制、URI 主机与端口校验、HTTP 响应大小限制、Buffer 序列化边界、远程图片 TTL 与内置编辑器参数，同时保留合法输入兼容性。该回归使用本地构造输入与禁用联网的 HTTP mock，不需要外部网络。
 
 依赖维护时可显式运行以下联网命令，定向刷新间接依赖并查询漏洞库：
 
