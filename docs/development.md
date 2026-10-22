@@ -45,6 +45,8 @@ pnpm exec playwright install chromium
 
 ## 依赖安全维护
 
+TypeScript 当前保持 `^5.9.3`。`astro check` 使用的 `@astrojs/check` 需要 TypeScript 的程序接口，当前兼容 TypeScript 5 和 6，尚不兼容 TypeScript 7。因此 Dependabot 暂时忽略 TypeScript `>=7.0.0` 的更新；待[上游兼容支持](https://github.com/withastro/roadmap/discussions/1321)就绪并通过双版本验证后再解除限制。
+
 当前工具链基线为 Astro `7.4.0`、Vite `8.3.4`、Sharp `0.35.5`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线。Astro 内容加载器与 frontmatter 改用 `@astrojs/internal-helpers/yaml`，由 `yaml` 的别名展开限制保护，不再直接消费 js-yaml。
 
 锁文件同时保持 Undici `8.11.2`、fast-uri `3.1.8` 与 devalue `6.0.2` 的修复基线。Undici 由 Astro 的 unifont 引入，fast-uri 由 `@astrojs/check` 的 YAML 语言服务经 ajv 引入，devalue 由 Astro 引入。项目产物为静态页面，这些依赖属于构建与开发工具链。

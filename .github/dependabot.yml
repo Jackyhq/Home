@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # astro check requires the TypeScript compiler API; review when upstream supports TypeScript 7.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
     groups:
       production-dependencies:
         dependency-type: production
