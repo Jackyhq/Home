@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@10.19.0",
   "engines": {
-    "node": ">=22.19 <25"
+    "node": ">=22.22 <25"
   },
   "scripts": {
     "dev": "astro dev",
@@ -24,7 +24,7 @@
     "docs:check": "node scripts/check-doc-links.mjs",
     "photos:sync": "tsx scripts/sync-featured-photos.ts",
     "test": "pnpm test:unit && pnpm test:e2e && pnpm test:e2e:en",
-    "test:unit": "tsx --test scripts/lib/dependency-security.test.ts scripts/lib/photos-manifest.test.ts scripts/lib/read-limited-response.test.ts src/lib/photo-layout.test.ts src/lib/photos.test.ts",
+    "test:unit": "tsx --test scripts/lib/dependency-security.test.ts scripts/lib/editor-security.test.ts scripts/lib/photos-manifest.test.ts scripts/lib/read-limited-response.test.ts src/lib/photo-layout.test.ts src/lib/photos.test.ts",
     "pretest:e2e": "pnpm build",
     "test:e2e": "playwright test",
     "test:e2e:dist": "playwright test",
@@ -33,13 +33,13 @@
     "test:e2e:photo": "playwright test --grep @photography"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/sitemap": "^3.7.4",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@iconify-json/ph": "^1.2.2",
-    "astro": "^7.2.8",
+    "astro": "^7.4.0",
     "astro-icon": "^1.2.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

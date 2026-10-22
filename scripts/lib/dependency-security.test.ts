@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const astroRequire = createRequire(require.resolve('astro/package.json'));
-const frontmatterRequire = createRequire(
-  astroRequire.resolve('@astrojs/internal-helpers/frontmatter'),
-);
+const { parseYaml } = astroRequire('@astrojs/internal-helpers/yaml');
+const { parseFrontmatter } = astroRequire('@astrojs/internal-helpers/frontmatter');
 const unifontRequire = createRequire(astroRequire.resolve('unifont'));
 const checkRequire = createRequire(require.resolve('@astrojs/check'));
 const languageServerRequire = createRequire(checkRequire.resolve('@astrojs/language-server'));
@@ -17,30 +17,33 @@ const ajvRequire = createRequire(yamlLanguageServerRequire.resolve('ajv'));
 const uri = ajvRequire('fast-uri');
 const { MockAgent, interceptors } = unifontRequire('undici');
 
-// Exercise the parser resolved by each consumer, including duplicate copies.
+// Astro's file loader and frontmatter now share the internal YAML parser.
 const consumers = [
-  ['Astro content loader', astroRequire],
-  ['Astro frontmatter helper', frontmatterRequire],
+  ['Astro content YAML parser', parseYaml],
+  ['Astro frontmatter helper', (source: string) => parseFrontmatter(`---\n${source}---\n`).frontmatter],
 ] as const;
 
-for (const [consumer, resolveDependency] of consumers) {
-  const { load } = resolveDependency('js-yaml') as {
-    load: (source: string) => unknown;
-  };
-
-  test(`${consumer} bounds repeated sequences of empty YAML merge sources`, () => {
-    // 32 × 320 = 10,240 empty merges exceeds the default 10,000-unit budget.
+for (const [consumer, parse] of consumers) {
+  test(`${consumer} bounds nested YAML sequence aliases`, () => {
     const source =
-      `sources: &sources [${Array(32).fill('{}').join(',')}]\n` +
-      'targets:\n' + '  - <<: *sources\n'.repeat(320);
+      'a: &a [x, x, x, x, x, x, x, x, x, x]\n' +
+      `b: &b [${Array(10).fill('*a').join(',')}]\n` +
+      `c: [${Array(10).fill('*b').join(',')}]\n`;
 
-    assert.throws(() => load(source), /maxTotalMergeKeys/);
+    assert.throws(() => parse(source), /Excessive alias count/);
   });
 
-  test(`${consumer} bounds repeated direct empty YAML merge aliases`, () => {
-    const source = 'source: &source {}\ntargets:\n' + '  - <<: *source\n'.repeat(10_001);
+  test(`${consumer} bounds nested YAML merge aliases`, () => {
+    const source =
+      'a: &a {key: value}\n' +
+      `b: &b {<<: [${Array(10).fill('*a').join(',')}]}\n` +
+      `c: {<<: [${Array(10).fill('*b').join(',')}]}\n`;
 
-    assert.throws(() => load(source), /maxTotalMergeKeys/);
+    assert.throws(() => parse(source), /Excessive alias count/);
+  });
+
+  test(`${consumer} rejects malformed YAML`, () => {
+    assert.throws(() => parse('items: [unterminated\n'), { name: 'YAMLParseError' });
   });
 
   test(`${consumer} preserves ordinary YAML merges and explicit overrides`, () => {
@@ -48,12 +51,67 @@ for (const [consumer, resolveDependency] of consumers) {
       'defaults: &defaults {title: Still Noticing, locale: en}\n' +
       'page: {<<: *defaults, locale: zh-CN}\n';
 
-    assert.deepEqual(load(source), {
+    assert.deepEqual(parse(source), {
       defaults: { title: 'Still Noticing', locale: 'en' },
       page: { title: 'Still Noticing', locale: 'zh-CN' },
     });
   });
 }
+
+const remoteImages = () => import(pathToFileURL(
+  astroRequire.resolve('./dist/assets/build/remote.js'),
+).href);
+const imageURL = 'https://dependency-test.invalid/photo.png';
+const imageConfig = { domains: ['dependency-test.invalid'], remotePatterns: [] };
+
+for (const [label, headers] of [
+  ['private', { 'cache-control': 'private, max-age=3600' }],
+  ['no-store', { 'cache-control': 'no-store, max-age=3600' }],
+  ['no-cache', { 'cache-control': 'no-cache, max-age=3600' }],
+  ['cookie', { 'set-cookie': 'session=example', 'cache-control': 'max-age=3600' }],
+  ['proxy-revalidate', { 'cache-control': 'proxy-revalidate, max-age=0' }],
+] as const) {
+  test(`Astro remote images do not retain a reusable TTL for ${label} responses`, async () => {
+    const { loadRemoteImage } = await remoteImages();
+    const result = await loadRemoteImage(imageURL, async () => new Response('image', { headers }), imageConfig);
+
+    assert.ok(result.expires <= Date.now());
+    assert.equal(result.data.toString(), 'image');
+  });
+}
+
+test('Astro remote images preserve ordinary public caching', async () => {
+  const { loadRemoteImage } = await remoteImages();
+  const started = Date.now();
+  const result = await loadRemoteImage(imageURL, async () => new Response('image', {
+    headers: { 'cache-control': 'public, max-age=3600', etag: '"photo"' },
+  }), imageConfig);
+
+  assert.ok(result.expires >= started + 3_590_000);
+  assert.ok(result.expires <= Date.now() + 3_600_000);
+  assert.equal(result.data.toString(), 'image');
+  assert.equal(result.etag, '"photo"');
+});
+
+test('Astro remote image revalidation forwards only validators and preserves a 304 result', async () => {
+  const { revalidateRemoteImage } = await remoteImages();
+  const validators = { etag: '"photo"', lastModified: 'Wed, 21 Oct 2026 10:00:00 GMT' };
+  let requests = 0;
+  const result = await revalidateRemoteImage(imageURL, validators, async (request: Request) => {
+    requests += 1;
+    assert.equal(request.url, imageURL);
+    assert.deepEqual(Object.fromEntries(request.headers), {
+      'if-modified-since': validators.lastModified,
+      'if-none-match': validators.etag,
+    });
+    return new Response(null, { status: 304, headers: { 'cache-control': 'public, max-age=3600' } });
+  }, imageConfig);
+
+  assert.equal(requests, 1);
+  assert.equal(result.data, null);
+  assert.equal(result.etag, validators.etag);
+  assert.equal(result.lastModified, validators.lastModified);
+});
 
 test('AJV URI resolver rejects malformed bracket hosts during parsing and resolution', () => {
   for (const reference of ['http://[example.com/app', 'http://[127.0.0.1/app', '//[example.com/app']) {
