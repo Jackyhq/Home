@@ -7,6 +7,7 @@ export const localizedPhotographyContent = {
     swipeStatus: (count: number) => `左右滑动浏览 ${count} 张相片。`,
   },
   en: {
+    eyebrow: 'Photography',
     title: 'Photographs',
     selection: (count: number) => `Through my lens · ${count} photographs`,
     archiveLink: 'Explore the photo archive',

@@ -409,7 +409,7 @@ test(
 
         await expectSharedRecipe('.about-heading h2, .section-heading h2', 2);
         await expectSharedRecipe('.about-title-primary, .recent-title-primary', 2);
-        await expectSharedRecipe('.welcome-kicker, .about-heading > p', 2);
+        await expectSharedRecipe('.welcome-kicker, .section-eyebrow', 3);
         await expectSharedRecipe('.about-contact-links a > span:first-child', 3);
         await expectSharedRecipe('.about-contact-links a > span:last-child', 3);
         await expectSharedRecipe('.scroll-cue', 2);

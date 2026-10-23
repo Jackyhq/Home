@@ -38,6 +38,66 @@ test.beforeEach(async ({ context }) => {
   await mockExternalRequests(context);
 });
 
+test('uses matching numbered headers for About and Photography', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.locator('[data-photo-story]')).toHaveAttribute('data-visible-count', /^\d+$/);
+
+  const headers = page.locator('.about-heading, .recent .section-heading');
+  await expect(headers).toHaveCount(2);
+  await expect(headers.locator(':scope > .section-eyebrow')).toHaveText([
+    '02 / About',
+    '03 / Photography',
+  ]);
+  await expect(headers.locator(':scope > .section-eyebrow > span[lang="en"]')).toHaveText([
+    'About',
+    'Photography',
+  ]);
+  await expect(headers.locator(':scope > .section-eyebrow + h2')).toHaveCount(2);
+
+  const geometry = await headers.evaluateAll((elements) => elements.map((element) => {
+    const label = element.querySelector<HTMLElement>('.section-eyebrow')!;
+    const title = element.querySelector<HTMLElement>('h2')!;
+    const headerRect = element.getBoundingClientRect();
+    const labelRect = label.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const recipe = (target: Element) => {
+      const style = getComputedStyle(target);
+      return {
+        fontFamily: style.fontFamily,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        lineHeight: style.lineHeight,
+        letterSpacing: style.letterSpacing,
+        textTransform: style.textTransform,
+      };
+    };
+    return {
+      labelRecipe: recipe(label),
+      titleRecipe: recipe(title),
+      labelLeftInset: labelRect.left - headerRect.left,
+      titleLeftInset: titleRect.left - headerRect.left,
+      labelToTitle: titleRect.top - labelRect.bottom,
+      titleToRule: headerRect.bottom - titleRect.bottom,
+      titleOverflow: titleRect.right - headerRect.right,
+      ruleWidth: getComputedStyle(element).borderBottomWidth,
+      ruleStyle: getComputedStyle(element).borderBottomStyle,
+    };
+  }));
+
+  expect(geometry[1].labelRecipe).toEqual(geometry[0].labelRecipe);
+  expect(geometry[1].titleRecipe).toEqual(geometry[0].titleRecipe);
+  for (const header of geometry) {
+    expect(Math.abs(header.labelLeftInset)).toBeLessThanOrEqual(1);
+    expect(Math.abs(header.titleLeftInset)).toBeLessThanOrEqual(1);
+    expect(header.labelToTitle).toBeGreaterThan(0);
+    expect(header.titleToRule).toBeGreaterThan(0);
+    expect(header.titleOverflow).toBeLessThanOrEqual(1);
+    expect(header.ruleWidth).toBe('1px');
+    expect(header.ruleStyle).toBe('solid');
+  }
+});
+
 test('keeps photography metadata and its archive action compact without an introduction', { tag: '@once' }, async ({ page }) => {
   for (const viewport of [
     { width: 1440, height: 900 },
@@ -50,6 +110,7 @@ test('keeps photography metadata and its archive action compact without an intro
     await page.goto('/#photography');
     await page.evaluate(() => document.fonts.ready);
     const story = page.locator('[data-photo-story]');
+    await expect(story).toHaveAttribute('data-photo-mode', viewport.width <= 820 ? 'mobile' : 'desktop');
     await expect(story).toHaveAttribute('data-visible-count', /^\d+$/);
     const geometry = await story.evaluate((element) => {
       const get = (selector: string) => element.querySelector<HTMLElement>(selector)!;

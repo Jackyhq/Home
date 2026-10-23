@@ -42,24 +42,19 @@ const getMobilePhotoSizes = (photo: FeaturedPhoto) =>
   <div class="recent-viewport">
     <div class="recent-content">
       <div class="recent-inner">
-        <div class="section-heading">
-          <div>
-            <h2 id="recent-title">
-              {
-                isEnglish ? (
-                  <span class="recent-title-primary" lang="en">{englishCopy.title}</span>
-                ) : (
-                  <>
-                    <span class="recent-title-primary" lang="en">{englishCopy.title}</span>
-                    <span class="recent-title-translation">
-                      <span class="recent-title-secondary" lang="zh-CN">{chineseCopy.title}</span>
-                    </span>
-                  </>
-                )
-              }
-            </h2>
-          </div>
-        </div>
+        <header class="section-heading">
+          <p class="section-eyebrow">03 <span aria-hidden="true">/</span> <span lang="en">{englishCopy.eyebrow}</span></p>
+          <h2 id="recent-title">
+            <span class="recent-title-primary" lang="en">{englishCopy.title}</span>
+            {
+              !isEnglish && (
+                <span class="recent-title-translation">
+                  <span class="recent-title-secondary" lang="zh-CN">{chineseCopy.title}</span>
+                </span>
+              )
+            }
+          </h2>
+        </header>
 
         <div class="recent-intro">
           <div class="recent-intro-copy">

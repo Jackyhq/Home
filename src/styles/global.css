@@ -330,7 +330,7 @@ ol {
 }
 
 .welcome-kicker,
-.about-heading > p {
+.section-eyebrow {
   font-family: var(--font-mono);
   font-size: clamp(0.7rem, 0.8vw, 0.82rem);
   letter-spacing: 0.08em;
@@ -338,6 +338,11 @@ ol {
 }
 
 .welcome-kicker {
+  color: var(--color-accent);
+}
+
+.section-eyebrow {
+  margin-bottom: clamp(0.7rem, 1.2vw, 1.1rem);
   color: var(--color-accent);
 }
 
@@ -435,7 +440,6 @@ ol {
 }
 
 .about-heading > p {
-  margin-bottom: clamp(0.7rem, 1.2vw, 1.1rem);
   color: var(--color-accent-on-paper);
 }
 
@@ -715,10 +719,6 @@ ol {
 }
 
 .section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 2rem;
   padding-bottom: clamp(1.25rem, 2vw, 2rem);
   border-bottom: 1px solid var(--color-on-ink-rule);
 }
@@ -995,7 +995,7 @@ ol {
 
 /* 标签 / 编号统一字重：增强摄影档案感 */
 .welcome-kicker,
-.about-heading > p,
+.section-eyebrow,
 .nav-divider,
 .menu-toggle,
 .scroll-cue,
@@ -1312,11 +1312,6 @@ ol {
   .avatar-stage {
     width: min(84vw, 22rem);
     margin-inline: auto;
-  }
-
-  .section-heading {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .section-heading h2 {
@@ -1651,7 +1646,7 @@ ol {
     padding-bottom: 0.75rem;
   }
 
-  .about-heading > p {
+  .section-eyebrow {
     margin-bottom: 0.35rem;
   }
 

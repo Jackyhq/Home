@@ -1,6 +1,6 @@
 # 开发指南
 
-最近审阅：2026-10-22
+最近审阅：2026-10-23
 
 ## 前置条件
 
@@ -45,7 +45,7 @@ pnpm exec playwright install chromium
 
 ## 依赖安全维护
 
-TypeScript 当前保持 `^5.9.3`。`astro check` 使用的 `@astrojs/check` 需要 TypeScript 的程序接口，当前兼容 TypeScript 5 和 6，尚不兼容 TypeScript 7。因此 Dependabot 暂时忽略 TypeScript `>=7.0.0` 的更新；待[上游兼容支持](https://github.com/withastro/roadmap/discussions/1321)就绪并通过双版本验证后再解除限制。
+TypeScript 当前使用 `^6.0.3`。`astro check` 使用的 `@astrojs/check` 需要 TypeScript 的程序接口，当前兼容 TypeScript 5 和 6，尚不兼容 TypeScript 7。因此 Dependabot 暂时忽略 TypeScript `>=7.0.0` 的更新；待[上游兼容支持](https://github.com/withastro/roadmap/discussions/1321)就绪并通过双版本验证后再解除限制。
 
 当前工具链基线为 Astro `7.4.0`、Vite `8.3.4`、Sharp `0.35.5`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线。Astro 内容加载器与 frontmatter 改用 `@astrojs/internal-helpers/yaml`，由 `yaml` 的别名展开限制保护，不再直接消费 js-yaml。
 
@@ -85,6 +85,8 @@ vercel.json       Vercel 中文版验证站的版本化安装、构建与输出�
 `scripts/lib/photos-manifest.ts` 负责把上游 v9 完整清单过滤并映射为本地 v2 快照；它只保留页面所需字段，不落盘 EXIF、GPS、原图地址或存储键。`src/lib/photo-schema.ts` 有意不导入已提交快照，从而让 `pnpm photos:sync` 能够修复缺失或无效数据；`src/lib/photos.ts` 是构建时校验已提交快照的加载器。
 
 个人内容集中维护在 `src/content/personal.ts`。`src/config/site.ts` 与 `src/i18n/` 从该文件组装各版本的配置和文案；更换站点身份时应替换个人内容，而不是在组件中逐处修改。素材和相片快照的权利范围见[开源与内容许可](open-source.md)，复用前须按该文档完成替换。
+
+About 与 Photography 使用相同的区块标题层级：`02 / About`、`03 / Photography` 编号标签在上，英文展示标题在下，标题区域末尾保留分隔线。中文版附中文副标题，英文版只输出英文；两区块共用标签与标题的字体规则，并在桌面端和手机端保持一致层级。
 
 ## 源文件与生成物边界
 
