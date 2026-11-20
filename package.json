@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@10.19.0",
   "engines": {
-    "node": ">=22.22 <25"
+    "node": ">=22.23.4 <25"
   },
   "scripts": {
     "dev": "astro dev",
@@ -33,17 +33,17 @@
     "test:e2e:photo": "playwright test --grep @photography"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.4",
+    "@astrojs/sitemap": "^3.7.5",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@iconify-json/ph": "^1.2.2",
-    "astro": "^7.4.0",
+    "astro": "^7.4.12",
     "astro-icon": "^1.2.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "@playwright/test": "^1.64.1",
+    "@astrojs/check": "^0.9.12",
+    "@playwright/test": "^1.65.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   },

@@ -16,9 +16,10 @@ function editorHelper(file: string, factory: string, platform = 'win32') {
   const marker = `/node_modules/launch-editor/${file}\n`;
   const start = bundle.indexOf(marker);
   assert.ok(start >= 0, `Vite must include launch-editor/${file}`);
-  const end = bundle.indexOf('//#endregion', start);
-  assert.ok(end > start);
-  const source = bundle.slice(start + marker.length, end);
+  const moduleEnd = '\n}));\n';
+  const end = bundle.indexOf(moduleEnd, start + marker.length);
+  assert.ok(end >= 0, `Vite must include the complete launch-editor/${file} factory`);
+  const source = bundle.slice(start + marker.length, end + moduleEnd.length);
   const paths = platform === 'win32' ? path.win32 : path.posix;
   const cwd = platform === 'win32' ? 'C:\\project' : '/mnt/c/project';
 

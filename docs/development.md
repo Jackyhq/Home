@@ -1,10 +1,10 @@
 # 开发指南
 
-最近审阅：2026-10-23
+最近审阅：2026-11-20
 
 ## 前置条件
 
-- 仓库默认使用 Node.js 24（见 `.nvmrc`）；`package.json` 接受 22.22 至 24 范围内受支持的 Node 版本，以满足 Astro 的运行时要求。
+- 仓库默认使用 Node.js 24（见 `.nvmrc`）；`package.json` 要求 Node.js `>=22.23.4 <25`，最低版本与 Astro 的运行时要求一致。
 - pnpm 10.19.0，建议通过 Corepack 使用。
 - Playwright 浏览器测试套件所需的 Chromium。
 
@@ -47,9 +47,11 @@ pnpm exec playwright install chromium
 
 TypeScript 当前使用 `^6.0.3`。`astro check` 使用的 `@astrojs/check` 需要 TypeScript 的程序接口，当前兼容 TypeScript 5 和 6，尚不兼容 TypeScript 7。因此 Dependabot 暂时忽略 TypeScript `>=7.0.0` 的更新；待[上游兼容支持](https://github.com/withastro/roadmap/discussions/1321)就绪并通过双版本验证后再解除限制。
 
-当前工具链基线为 Astro `7.4.0`、Vite `8.3.4`、Sharp `0.35.5`、smol-toml `1.9.1` 与 source-map-js `1.2.2`。Sharp 当前链接 libheif `1.23.2` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线。Astro 内容加载器与 frontmatter 改用 `@astrojs/internal-helpers/yaml`，由 `yaml` 的别名展开限制保护，不再直接消费 js-yaml。
+当前工具链基线为 Astro `7.4.12`、Vite `8.3.8`、Sharp `0.35.5`、smol-toml `1.9.1` 与 source-map-js `1.2.4`。Sharp 的 macOS arm64 预构建包链接 libheif `1.23.5` 和 librsvg `2.63.2`。`package.json` 与 `pnpm-lock.yaml` 共同维护该基线。Astro 内容加载器与 frontmatter 共用 `@astrojs/internal-helpers/yaml`，由 `yaml` 的别名展开限制保护。
 
-锁文件同时保持 Undici `8.11.2`、fast-uri `3.1.8` 与 devalue `6.0.2` 的修复基线。Undici 由 Astro 的 unifont 引入，fast-uri 由 `@astrojs/check` 的 YAML 语言服务经 ajv 引入，devalue 由 Astro 引入。项目产物为静态页面，这些依赖属于构建与开发工具链。
+当前 Astro 版本包含动态标签名与 Node 适配器图片端点的安全修复。[动态标签名公告](https://github.com/advisories/GHSA-mh32-jxcr-mh9f) · [图片端点公告](https://github.com/advisories/GHSA-r3h5-4585-7x3w)
+
+锁文件当前解析到 Undici `8.13.0`、fast-uri `3.1.9` 与 devalue `6.0.3`。Undici 由 Astro 的 unifont 引入，fast-uri 由 `@astrojs/check` 的 YAML 语言服务经 ajv 引入，devalue 由 Astro 引入。fast-uri `3.1.9` 包含四项 URI 解析与规范化修复，可在 ajv 已声明的版本范围内更新锁文件。项目产物为静态页面，这些依赖属于构建与开发工具链。[fast-uri 3.1.9 发布说明](https://github.com/fastify/fast-uri/releases/tag/v3.1.9)
 
 Vite 内置的 launch-editor 已更新到 `2.14.2`，覆盖 Windows 路径规范化、百分号命令展开和 WSL 编辑器参数处理的三条告警；单独覆盖 launch-editor 依赖不能替换 Vite 内置代码。回归测试对锁定 Vite 包中的实际辅助函数模拟 Windows 与 WSL 环境，不启动真实编辑器。
 
@@ -60,7 +62,7 @@ Vite 内置的 launch-editor 已更新到 `2.14.2`，覆盖 Windows 路径规范
 依赖维护时可显式运行以下联网命令，定向刷新间接依赖并查询漏洞库：
 
 ```sh
-pnpm update --depth Infinity smol-toml source-map-js sharp
+pnpm update --depth Infinity fast-uri smol-toml source-map-js sharp
 pnpm audit
 ```
 
@@ -108,6 +110,8 @@ About 与 Photography 使用相同的区块标题层级：`02 / About`、`03 / P
 结构性重构保持输出和行为不变；新增纯逻辑时添加有针对性的单元测试。实现、页面文案或部署事实变化时，在同一变更中更新对应说明与测试。内部讨论、历史验收、截图和个人计划仅保留在本地被忽略的隐藏目录，不属于公开文档或构建输入。
 
 浏览器测试通过 `tests/helpers/network.ts` 在浏览器 context 上统一模拟缩略图并阻止分析请求；手动创建的无 JavaScript context 也必须在导航前安装这些拦截，并检查全部 30 张缩略图经过模拟。因此拉取请求中的 GitHub CI 浏览器检查既不依赖摄影站 CDN，也不会发送正式环境分析数据。分析回归还将规范域名与预览域名映射到受测服务器，验证两种主机名下的加载行为；默认本地回归不会访问正式站点。
+
+首页浏览器回归通过实际元素位置验证滚动提示的对齐与间距。验证移动菜单在断点处的页首覆盖范围前，测试会将页面滚动归零。
 
 摄影档案的精确 URL、鼠标、触控和键盘用例验证页面自身的链接行为。离线回归不执行真实 GA 脚本，不能证明后台跨域设置已生效；远程配置变更后须按[部署运维](operations/deployment.md#分析统计与跨域链接)在两个正式域名单独验收，不能用离线测试结果替代。
 

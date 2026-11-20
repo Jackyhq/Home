@@ -322,7 +322,6 @@ test(
           return {
             alignItems: style.alignItems,
             display: style.display,
-            justifyContent: style.justifyContent,
             left: rect.left,
             right: rect.right,
             width: rect.width,
@@ -339,7 +338,6 @@ test(
       geometries.forEach((geometry) => {
         expect(geometry.display).toBe('flex');
         expect(geometry.alignItems).toBe('center');
-        expect(geometry.justifyContent).toBe('flex-start');
         expect(Math.abs(geometry.iconLeft - geometry.left)).toBeLessThanOrEqual(1);
         expect(geometry.textLeft - geometry.iconRight).toBeCloseTo(12, 0);
       });
@@ -760,6 +758,7 @@ test('opens a Chinese mobile menu and closes it through each interaction path', 
   await expectFullyClosed();
 
   await page.setViewportSize({ width: 820, height: 852 });
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await expect(menuButton).toBeVisible();
   await menuButton.click();
   await expect(header).toHaveAttribute('data-menu-open', '');
